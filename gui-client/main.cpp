@@ -26,6 +26,17 @@ bool isButtonPressed(ImGuiKey key){
     return pressed;
 }
 
+#include <vector>
+
+std::vector<std::string> guiConsoleLines; //lager liste (vektor) som tar vare på "string tall" til listen guiConsoleLines
+int consoleNumberLine = 0; //deklarerer
+
+void toGUIConsole(std::string text){ 
+    consoleNumberLine+=1;
+    guiConsoleLines.push_back(std::to_string(consoleNumberLine) + ": " + text);
+}
+
+
 //=================================================== LAYOUT: HVILKE VINDUER ER ÅPNE ==========
 // Lagres som en egen seksjon i layout-filene:
 //   [Vortex][Visibility]
@@ -222,6 +233,7 @@ int main(int, char**)
     // Main loop
     bool done = false;
     bool tilkoblet = false;
+    bool guiConsoleWindow = false;
 
     
 
@@ -280,8 +292,10 @@ int main(int, char**)
         ImGui::NewFrame();
 
         // W bytter til neste bilde i videovinduet (ikke mens man skriver i et tekstfelt)
-        if (ImGui::IsKeyPressed(ImGuiKey_W, false) && !io.WantTextInput)
+        if (ImGui::IsKeyPressed(ImGuiKey_W, false) && !io.WantTextInput){
             NextImage = true;
+            toGUIConsole("W pressed, switching picture.");
+        }    
         {
             drone_state DroneState = {};
             PlatformRecv(&Server,(u8*)&DroneState,sizeof(DroneState));
@@ -332,6 +346,12 @@ int main(int, char**)
                     if(ImGui::MenuItem("Video")) Visible["video"] = !Visible["video"];
                     ImGui::EndMenu();
                 }
+                if(ImGui::BeginMenu("GUI-Console")){
+                    if(ImGui::MenuItem("Console")) Visible["console"] = !Visible["console"];
+                    //guiConsoleWindow = !guiConsoleWindow;
+                    
+                    ImGui::EndMenu();
+                }
                 
 
                 float ButtonWidth = ImGui::CalcTextSize("Layouts").x + ImGui::GetStyle().FramePadding.x * 2;
@@ -379,6 +399,17 @@ int main(int, char**)
                 ImGui::Image((ImTextureID)(intptr_t)VideoTex, ImVec2(VideoDisplayW, VideoDisplayH));
                 ImGui::End();
 
+            }
+
+            //Console window
+            if (Visible["console"]){ 
+                ImGui::Begin("GUI-Console", &guiConsoleWindow);
+                for (const std::string& line : guiConsoleLines){
+                    ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "%s", line.c_str());
+                }
+                if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+                    ImGui::SetScrollHereY(1.0f); // auto-scroll nedover
+                ImGui::End();
             }
 
             
