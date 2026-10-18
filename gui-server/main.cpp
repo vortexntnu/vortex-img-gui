@@ -23,15 +23,15 @@ s32 main(s32 CharC, char **ArgV){
 
 
     while (AcceptedSocket.IsValid) {
-        DS.Speed.X = 1.0f + sinf((f32)MS/10000);
-        DS.Speed.Y = 0.1f + 0.3f*cosf((f32)MS/35000);
-        DS.Speed.Y = 0.0f + 0.1f*cosf((f32)MS / 70000);
+        DS.Odom.LinearVel.X = 1.0f + sinf((f32)MS/10000);
+        DS.Odom.LinearVel.Y = 0.1f + 0.3f*cosf((f32)MS/35000);
+        DS.Odom.LinearVel.Y = 0.0f + 0.1f*cosf((f32)MS / 70000);
 
-        DS.Pos.X += DS.Speed.X;
-        DS.Pos.Y += DS.Speed.Y;
-        DS.Pos.Z += DS.Speed.Z;
+        DS.Odom.Pos.X += DS.Odom.LinearVel.X;
+        DS.Odom.Pos.Y += DS.Odom.LinearVel.Y;
+        DS.Odom.Pos.Z += DS.Odom.LinearVel.Z;
 
-        DS.Thrusters[0].Speed = DS.Speed.Y * 10;
+        DS.Thrusters[0].Speed = DS.Odom.LinearVel.Y * 10;
         DS.Depth = 2.0f + sinf((f32)MS / 10000);
 
         s64 SendtBytes = PlatformSend(&AcceptedSocket, (u8*)&DS, sizeof(DS));

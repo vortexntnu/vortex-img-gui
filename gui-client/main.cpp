@@ -17,7 +17,7 @@
 #include"../lib/platform.h"
 
 #include "video.cpp"
-
+#include "layouts.cpp"
 #include <map>      // std::map (dictionary)
 #include <string>   // std::string
 
@@ -35,39 +35,6 @@ void toGUIConsole(std::string text){
     consoleNumberLine+=1;
     guiConsoleLines.push_back(std::to_string(consoleNumberLine) + ": " + text);
 }
-
-
-//=================================================== LAYOUT: HVILKE VINDUER ER ÅPNE ==========
-// Lagres som en egen seksjon i layout-filene:
-//   [Vortex][Visibility]
-//   video=1
-// Kalles når ImGui finner [Vortex][Visibility] i fila. Må returnere noe som ikke er nullptr.
-static void* VortexReadOpen(ImGuiContext*, ImGuiSettingsHandler*, const char*)
-{
-    return (void*)1;
-}
-
-// Kalles for hver linje under [Vortex][Visibility], f.eks. "video=1"
-static void VortexReadLine(ImGuiContext*, ImGuiSettingsHandler* Handler, void*, const char* Line)
-{
-    auto* Visible = (std::map<std::string, bool>*)Handler->UserData;
-    const char* Equals = strchr(Line, '=');                 // Finn '='
-    if (Equals == nullptr)
-        return;
-    std::string Name(Line, Equals - Line);                   // Teksten før '='
-    (*Visible)[Name] = atoi(Equals + 1) != 0;                // Tallet etter '=': 1 = true, 0 = false
-}
-
-// Kalles når ImGui lagrer. Skriver hele dictionary-en til fila.
-static void VortexWriteAll(ImGuiContext*, ImGuiSettingsHandler* Handler, ImGuiTextBuffer* Out)
-{
-    auto* Visible = (std::map<std::string, bool>*)Handler->UserData;
-    Out->appendf("[Vortex][Visibility]\n");
-    for (auto& Pair : *Visible)
-        Out->appendf("%s=%d\n", Pair.first.c_str(), Pair.second ? 1 : 0);
-    Out->append("\n");
-}
-//===============================================================================================================
 
 
 
@@ -158,22 +125,8 @@ int main(int, char**)
 
     // Hvilke vinduer som er åpne. Lagres og lastes sammen med layout-filene
     std::map<std::string, bool> Visible;
-
-    ImGuiSettingsHandler VortexHandler;
-    VortexHandler.TypeName   = "Vortex";                 // Navnet i [Vortex][...]
-    VortexHandler.TypeHash   = ImHashStr("Vortex");
-    VortexHandler.ReadOpenFn = VortexReadOpen;
-    VortexHandler.ReadLineFn = VortexReadLine;
-    VortexHandler.WriteAllFn = VortexWriteAll;
-    VortexHandler.UserData   = &Visible;                 // Gir funksjonene tilgang til dictionary-en
-    ImGui::AddSettingsHandler(&VortexHandler);
-
-    const char* ExeFolder = SDL_GetBasePath(); // f.eks. "...\gui-client\BuildOutput\"
-    char Path[512];
-    snprintf(Path, sizeof(Path), "%s../layouts/standar.ini", ExeFolder); 
-    ImGui::LoadIniSettingsFromDisk(Path);    // Layout 1 lastes ved oppstart 
-    std::string PendingLoadLayout;                   // Full sti til layout som skal lastes. Tom = ingenting
-    s32 PendingSaveLayout = 0;                       // 0 = ingenting skal lagres
+    layout_state Layout;
+    LayoutInit(&Layout, &Visible);
 
     // Setup Dear ImGui style
     ImGui::StyleColorsClassic();
@@ -220,7 +173,6 @@ int main(int, char**)
     static float valueFloat = 0.5;
     static int valueInt = 10;
     static char buffer[64] = "";
-    char ny[64] = "";
     
 
     
@@ -278,13 +230,7 @@ int main(int, char**)
             continue;
         }
 
-        
-        
-        if (!PendingLoadLayout.empty()) {
-            ImGui::LoadIniSettingsFromDisk(PendingLoadLayout.c_str());
-            PendingLoadLayout.clear();               // Ferdig, ikke last igjen
-        }
-        
+        LayoutLoadPending(&Layout);
 
         // Start the Dear ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
@@ -352,34 +298,8 @@ int main(int, char**)
                     
                     ImGui::EndMenu();
                 }
-                
 
-                float ButtonWidth = ImGui::CalcTextSize("Layouts").x + ImGui::GetStyle().FramePadding.x * 2;
-                float RightEdge   = ImGui::GetWindowWidth() - ImGui::GetStyle().WindowPadding.x;
-                ImGui::SetCursorPosX(RightEdge - ButtonWidth - 10);
-                if (ImGui::BeginMenu("Layouts")) {
-                    char Folder[512];
-                    snprintf(Folder, sizeof(Folder), "%s../layouts", ExeFolder);
-                    int Count = 0;
-                    char** Files = SDL_GlobDirectory(Folder, "*.ini", 0, &Count);
-                    if (Files != nullptr) {
-                        for (int i = 0; i < Count; i++) {
-                            if (ImGui::MenuItem(Files[i])) PendingLoadLayout = std::string(Folder) + "/" + Files[i];  // Kopi av hele stien
-                        }
-                        SDL_free(Files);
-                        
-                }
-
-                    //Oppdatere
-                    ImGui::Separator();
-                    if (ImGui::BeginMenu("Lagre layout som")) {
-                        // Enter i feltet = lagre. Tomt navn ignoreres
-                        if (ImGui::InputText("Navn:", ny, IM_ARRAYSIZE(ny), ImGuiInputTextFlags_EnterReturnsTrue) && ny[0] != '\0')
-                            PendingSaveLayout = 1;   // Lagres etter Render
-                        ImGui::EndMenu();
-                    }
-                    ImGui::EndMenu();             
-                }
+                LayoutMenu(&Layout);
 
                 ImGui::EndMainMenuBar();          
             }
@@ -403,7 +323,7 @@ int main(int, char**)
 
             //Console window
             if (Visible["console"]){ 
-                ImGui::Begin("GUI-Console", &guiConsoleWindow);
+                ImGui::Begin("GUI-Console", &Visible["console"]);
                 for (const std::string& line : guiConsoleLines){
                     ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "%s", line.c_str());
                 }
@@ -429,14 +349,7 @@ int main(int, char**)
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         SDL_GL_SwapWindow(window);
 
-        // Lagre layout når Enter er trykket i "Lagre layout som"
-        if (PendingSaveLayout) {
-            char Path[512];
-            snprintf(Path, sizeof(Path), "%s../layouts/%s.ini", ExeFolder, ny);
-            ImGui::SaveIniSettingsToDisk(Path);
-            PendingSaveLayout = 0;
-            ny[0] = '\0';                            // Tøm feltet til neste gang
-        }
+        LayoutSavePending(&Layout);
     }
 #ifdef __EMSCRIPTEN__
     EMSCRIPTEN_MAINLOOP_END;
