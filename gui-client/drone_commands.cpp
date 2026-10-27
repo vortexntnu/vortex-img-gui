@@ -4,3 +4,5 @@
 void StartDrone() {}
 
 void StopDrone() {}
+
+void SetKillswitch() {}
