@@ -17,6 +17,9 @@
 #include"../lib/platform.h"
 
 #include "video.cpp"
+#include "drone_commands.cpp"
+#include "page_general.cpp"
+#include "embedded.cpp"
 
 #include <map>      // std::map (dictionary)
 #include <string>   // std::string
@@ -158,6 +161,7 @@ int main(int, char**)
 
     // Hvilke vinduer som er åpne. Lagres og lastes sammen med layout-filene
     std::map<std::string, bool> Visible;
+    Visible["general"] = true;                           // Åpen hvis layouten ikke sier noe annet
 
     ImGuiSettingsHandler VortexHandler;
     VortexHandler.TypeName   = "Vortex";                 // Navnet i [Vortex][...]
@@ -230,6 +234,7 @@ int main(int, char**)
     platform_ip ServerIP = PlatformIP("127.0.0.1");
     platform_socket Server = PlatformConnect(ServerIP, 2100);
     u64 TimeSiceNetworkConnect = SDL_GetTicks();
+    gui_drone_state DroneState = {};                 // Siste hele melding fra serveren, lever mellom frames
     // Main loop
     bool done = false;
     bool tilkoblet = false;
@@ -297,8 +302,10 @@ int main(int, char**)
             toGUIConsole("W pressed, switching picture.");
         }    
         {
-            drone_state DroneState = {};
-            PlatformRecv(&Server,(u8*)&DroneState,sizeof(DroneState));
+            gui_drone_state Received = {};
+            s64 ReceivedBytes = PlatformRecv(&Server, (u8*)&Received, sizeof(Received));
+            if (ReceivedBytes == sizeof(Received))   // Halve meldinger forkastes, forrige verdier beholdes
+                DroneState = Received;
 
             static float f = 0.0f;
             static int counter = 0;
@@ -340,12 +347,16 @@ int main(int, char**)
                 }
                 if(ImGui::BeginMenu("Control")){
                     if(ImGui::MenuItem("Video")) Visible["video"] = !Visible["video"];
+                    if(ImGui::MenuItem("Generell")) Visible["general"] = !Visible["general"];
                     ImGui::EndMenu();
                 }
                 if(ImGui::BeginMenu("Perception")){
                     if(ImGui::MenuItem("Video")) Visible["video"] = !Visible["video"];
                     ImGui::EndMenu();
                 }
+                DrawEmbeddedMenu(&Visible["El-houses"], &Visible["PCB status"], &Visible["Thrusters"]);
+                
+                
                 if(ImGui::BeginMenu("GUI-Console")){
                     if(ImGui::MenuItem("Console")) Visible["console"] = !Visible["console"];
                     //guiConsoleWindow = !guiConsoleWindow;
@@ -413,9 +424,8 @@ int main(int, char**)
             }
 
             
-            ImGui::Begin("Generell");
-
-            ImGui::End();
+            DrawGeneralPage(&DroneState, &Visible["general"]);
+            DrawEmbeddedWindows(&DroneState, &Visible["El-houses"], &Visible["PCB status"], &Visible["Thrusters"]);
             
 
 
