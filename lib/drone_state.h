@@ -2,78 +2,67 @@
 #define drone_state_h
 #include "typedef.h"
 
-// How drone messages actually look
-#if 0
+struct v3 {
+  f64 X;
+  f64 Y;
+  f64 Z;
+};
 
+struct v4 {
+  f64 X;
+  f64 Y;
+  f64 Z;
+  f64 W;
+};
 
+struct gui_pose {
+  v3 Position;
+  v4 OrientationQuat;
+  f64 Convariance[36];
+};
+struct gui_twist {
+  v3 Linear;
+  v3 Angluar;
+  f64 Convariance[36];
+};
+struct gui_odom {
+  gui_pose Pose;
+  gui_twist Twist;
+};
+enum {
+  gui_OperationMode__AUTONOMOUS = 1,
+  gui_OperationMode__MANUAL = 2,
+  gui_OperationMode__REFERENCE = 3,
+};
 
-typedef struct nav_msgs__msg__Odometry
-{
-  /// Includes the frame id of the pose parent.
-  std_msgs__msg__Header header;
-  /// Frame id the pose points to. The twist is in this coordinate frame.
-  rosidl_runtime_c__String child_frame_id;
-  /// Estimated pose that is typically relative to a fixed world frame.
-  geometry_msgs__msg__PoseWithCovariance pose;
-  /// Estimated linear and angular velocity relative to child_frame_id.
-  geometry_msgs__msg__TwistWithCovariance twist;
-} nav_msgs__msg__Odometry;
-
-typedef struct geometry_msgs__msg__TwistWithCovariance
-{
-  geometry_msgs__msg__Twist twist;
-  /// Row-major representation of the 6x6 covariance matrix
-  /// The orientation parameters use a fixed-axis representation.
-  /// In order, the parameters are:
-  /// (x, y, z, rotation about X axis, rotation about Y axis, rotation about Z axis)
-  double covariance[36];
-} geometry_msgs__msg__TwistWithCovariance;
-
-typedef struct geometry_msgs__msg__PoseWithCovarianceStamped
-{
-  std_msgs__msg__Header header;
-  geometry_msgs__msg__PoseWithCovariance pose;
-} geometry_msgs__msg__PoseWithCovarianceStamped;
-typedef struct geometry_msgs__msg__PoseWithCovariance
-{
-  geometry_msgs__msg__Pose pose;
-  /// Row-major representation of the 6x6 covariance matrix
-  /// The orientation parameters use a fixed-axis representation.
-  /// In order, the parameters are:
-  /// (x, y, z, rotation about X axis, rotation about Y axis, rotation about Z axis)
-  double covariance[36];
-} geometry_msgs__msg__PoseWithCovariance;
-
-
-
-  vortex_msgs__msg__OperationMode__AUTONOMOUS = 1
-  vortex_msgs__msg__OperationMode__MANUAL = 2
-  vortex_msgs__msg__OperationMode__REFERENCE = 3
-typedef struct vortex_msgs__msg__OperationMode
-{
-  uint8_t operation_mode;
-} vortex_msgs__msg__OperationMode;
-typedef struct vortex_msgs__msg__ReferenceFilterQuat
-{
-  std_msgs__msg__Header header;
-  /// Eta_d
-  double x;
-  double y;
-  double z;
-  double qw;
-  double qx;
-  double qy;
-  double qz;
+struct gui_referencefilter_quat {
+  f64 x;
+  f64 y;
+  f64 z;
+  f64 qw;
+  f64 qx;
+  f64 qy;
+  f64 qz;
   /// Eta_d_dot
-  double x_dot;
-  double y_dot;
-  double z_dot;
-  double roll_dot;
-  double pitch_dot;
-  double yaw_dot;
-} vortex_msgs__msg__ReferenceFilterQuat;
+  f64 x_dot;
+  f64 y_dot;
+  f64 z_dot;
+  f64 roll_dot;
+  f64 pitch_dot;
+  f64 yaw_dot;
+};
 
-#define ROSIDL_RUNTIME_C__PRIMITIVE_SEQUENCE(STRUCT_NAME, TYPE_NAME)           \
+struct gui_drone_state {
+  u8 KillSwitch;    // This is a boolean value
+  u8 OperationMode; // See enum above
+  gui_odom Odometry;
+  gui_pose Pose;
+  gui_referencefilter_quat ReferenceFilterQuat;
+};
+// How drone messages actually look
+
+#if 0
+e ROSIDL_RUNTIME_C__PRIMITIVE_SEQUENCE(STRUCT_NAME, TYPE_NAME)           \
   typedef struct rosidl_runtime_c__##STRUCT_NAME##__Sequence {                 \
     TYPE_NAME *data; /*!< The pointer to an array of STRUCT_NAME */            \
     size_t size;     /*!< The number of valid items in data */                 \
@@ -85,7 +74,7 @@ typedef struct vortex_msgs__msg__ThrusterForces
   rosidl_runtime_c__double__Sequence thrust;
 } vortex_msgs__msg__ThrusterForces;
 #endif
-
+#if 0
 //=================================================== ANTALL ==========
 
 #define THRUSTER_COUNT 8
@@ -112,29 +101,7 @@ enum pcb_status {
   PcbStatus_Error = 3,
 };
 
-//=================================================== BYGGEKLOSSER ==========
-struct v3 {
-  f32 X;
-  f32 Y;
-  f32 Z;
-};
-
-struct quat { // Orientering som kvaternion, samme som ROS
-  f32 X;
-  f32 Y;
-  f32 Z;
-  f32 W;
-};
-
 //=================================================== GENERELL ==========
-// Tilsvarer nav_msgs/Odometry (uten kovarians)
-struct odometry {
-  v3 Pos; // meter
-  quat Orientation;
-  v3 LinearVel;  // m/s
-  v3 AngularVel; // rad/s
-};
-
 // GUI-et sjekker om Sequence øker. Står den stille = mistet kontakt
 struct heartbeat {
   u64 TimestampMS; // Dronens klokke
@@ -184,5 +151,5 @@ struct drone_state {
   actuators Actuators;
   b32 IsRosbagRecording; // Bekreftelse fra dronen
 };
-
+#endif
 #endif

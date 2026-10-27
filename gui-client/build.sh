@@ -11,7 +11,8 @@ g++ -I../../extern/imgui \
   -L../../extern-lib/ \
   ../../extern-lib/libSDL3.so.0.4.16 \
   -Wl,-rpath,'$ORIGIN' \
-  -lm -lpthread -o gui-server
+  -g -O0 \
+  -lm -lpthread -o gui-client
 
 cp ../../extern-lib/libSDL3.so.0.4.16 .
 cp -r ../asset .

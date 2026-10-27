@@ -1,9 +1,17 @@
+#define BUILD_WITH_ROS2
 #include "gui_ros2.cpp"
 
 #include <time.h>
 
+#include "../../lib/drone_state.h"
+#define PLATFORM_LINUX
+#include "../../lib/platform.h"
+
+#include <math.h>
 int main(int ArgC, char **ArgV) {
   printf("Printing line\n");
+
+  gui_drone_state DroneState = {};
 
   for (int I = 0; I < ArgC; I++) {
     printf("Arg[%d]: %s\n", I, ArgV[I]);
@@ -31,38 +39,42 @@ int main(int ArgC, char **ArgV) {
 #if 0
 
 #endif
-  GUIRosHandleNextMessage(&KillSwitchSub);
-  for (int I = 0; I < 50000; I++) {
 
-    while (!GUIRosHandleNextMessage(&KillSwitchSub))
-      ;
+  PlatformInitializeNetworkLib();
 
-    while (!GUIRosHandleNextMessage(&OdomSub))
-      ;
+  char *TestMessage = "TestMessage";
+  u8 RecvBuffer[1024] = {};
 
-    while (!GUIRosHandleNextMessage(&PoseSub))
-      ;
+  platform_ip ListenAddress = PlatformIP("127.0.0.1");
 
-    while (!GUIRosHandleNextMessage(&QuatSub))
-      ;
+  s32 MS = 0;
+  s32 SleepTime = 5;
+  platform_socket ListenSocket =
+      PlatformBindAddressAndListen(ListenAddress, 2100);
+  while (ListenSocket.IsValid) {
 
-    while (!GUIRosHandleNextMessage(&OpmodeSub))
-      ;
+    platform_socket AcceptedSocket = PlatformAccept(&ListenSocket);
+    while (AcceptedSocket.IsValid) {
 
-    while (!GUIRosHandleNextMessage(&ThrusterSub))
-      ;
-    //  GUIRosTakeAndPrintFromSubscription(&OdomSub);
-
-    // GUIRosTakeAndPrintFromSubscription(&PoseSub);
-    // GUIRosTakeAndPrintFromSubscription(&QuatSub);
-    // GUIRosTakeAndPrintFromSubscription(&OpmodeSub);
-    // GUIRosTakeAndPrintFromSubscription(&ThrusterSub);
-
-    timespec SleepTime = {};
-    // SleepTime.tv_sec = 2;
-    SleepTime.tv_nsec = 10000;
-    nanosleep(&SleepTime, NULL);
+      while (!GUIRosHandleNextMessage(&KillSwitchSub, &DroneState))
+        ;
+      while (!GUIRosHandleNextMessage(&OdomSub, &DroneState))
+        ;
+      while (!GUIRosHandleNextMessage(&PoseSub, &DroneState))
+        ;
+      while (!GUIRosHandleNextMessage(&OpmodeSub, &DroneState))
+        ;
+      while (!GUIRosHandleNextMessage(&ThrusterSub, &DroneState))
+        ;
+      while (!GUIRosHandleNextMessage(&QuatSub, &DroneState))
+        ;
+      PlatformSend(&AcceptedSocket, (u8 *)&DroneState, sizeof(DroneState));
+      timespec SleepTime = {};
+      SleepTime.tv_nsec = 100000;
+      nanosleep(&SleepTime, NULL);
+    }
   }
+#if 0
   for (int I = 0; I < 0; I++) {
     GUIRosPrintAllTopics(&GUIRosState);
 
@@ -70,8 +82,9 @@ int main(int ArgC, char **ArgV) {
     SleepTime.tv_sec = 3;
     nanosleep(&SleepTime, NULL);
   }
+#endif
 
   FreeGUIRosState(&GUIRosState);
-
+  PlatformFreeNetworkLib();
   return 0;
 }

@@ -17,6 +17,7 @@
 #include <vortex_msgs/msg/reference_filter_quat.h>
 #include <vortex_msgs/msg/thruster_forces.h>
 
+#include "../../lib/drone_state.h"
 #include "util.h"
 
 #define GUI_NODE_NAME "vortex_gui_node"
@@ -166,7 +167,8 @@ gui_ros_topic_subscription GUIRosSubscribeToTopic(gui_ros_state *State,
 
 // This function returns 0 when a message was taken and 1 when the queue is
 // empty
-int GUIRosHandleNextMessage(gui_ros_topic_subscription *Sub) {
+int GUIRosHandleNextMessage(gui_ros_topic_subscription *Sub,
+                            gui_drone_state *DroneState) {
   rmw_message_info_t RCLMessageInfo = {};
   int Result = -1;
 
@@ -179,7 +181,7 @@ int GUIRosHandleNextMessage(gui_ros_topic_subscription *Sub) {
     RCLReturnCode =
         rcl_take(&Sub->RCLSubscription, &Msg, &RCLMessageInfo, NULL);
     if (RCLReturnCode == RCL_RET_OK) {
-      printf("BoolMessage: %d \n", Msg.data);
+      DroneState->KillSwitch = Msg.data;
     }
     std_msgs__msg__Bool__fini(&Msg);
   } break;
@@ -197,6 +199,32 @@ int GUIRosHandleNextMessage(gui_ros_topic_subscription *Sub) {
 
     RCLReturnCode =
         rcl_take(&Sub->RCLSubscription, &Msg, &RCLMessageInfo, NULL);
+    if (RCLReturnCode == RCL_RET_OK) {
+      DroneState->Odometry.Pose.Position.X = Msg.pose.pose.position.x;
+      DroneState->Odometry.Pose.Position.Y = Msg.pose.pose.position.y;
+      DroneState->Odometry.Pose.Position.Z = Msg.pose.pose.position.z;
+      DroneState->Odometry.Pose.OrientationQuat.X = Msg.pose.pose.orientation.x;
+      DroneState->Odometry.Pose.OrientationQuat.Y = Msg.pose.pose.orientation.y;
+      DroneState->Odometry.Pose.OrientationQuat.Z = Msg.pose.pose.orientation.z;
+      DroneState->Odometry.Pose.OrientationQuat.W = Msg.pose.pose.orientation.w;
+      for (u32 I = 0; I < ArrayCount(DroneState->Odometry.Pose.Convariance) &&
+                      I < ArrayCount(Msg.pose.covariance);
+           I++) {
+        DroneState->Odometry.Pose.Convariance[I] = Msg.pose.covariance[I];
+      }
+
+      DroneState->Odometry.Twist.Angluar.X = Msg.twist.twist.angular.x;
+      DroneState->Odometry.Twist.Angluar.Y = Msg.twist.twist.angular.y;
+      DroneState->Odometry.Twist.Angluar.Z = Msg.twist.twist.angular.z;
+      DroneState->Odometry.Twist.Linear.X = Msg.twist.twist.linear.x;
+      DroneState->Odometry.Twist.Linear.Y = Msg.twist.twist.linear.y;
+      DroneState->Odometry.Twist.Linear.Z = Msg.twist.twist.linear.z;
+      for (u32 I = 0; I < ArrayCount(DroneState->Odometry.Twist.Convariance) &&
+                      I < ArrayCount(Msg.twist.covariance);
+           I++) {
+        DroneState->Odometry.Twist.Convariance[I] = Msg.twist.covariance[I];
+      }
+    }
 
     nav_msgs__msg__Odometry__fini(&Msg);
   } break;
@@ -206,6 +234,20 @@ int GUIRosHandleNextMessage(gui_ros_topic_subscription *Sub) {
 
     RCLReturnCode =
         rcl_take(&Sub->RCLSubscription, &Msg, &RCLMessageInfo, NULL);
+    if (RCLReturnCode == RCL_RET_OK) {
+      DroneState->Pose.Position.X = Msg.pose.pose.position.x;
+      DroneState->Pose.Position.Y = Msg.pose.pose.position.y;
+      DroneState->Pose.Position.Z = Msg.pose.pose.position.z;
+      DroneState->Pose.OrientationQuat.X = Msg.pose.pose.orientation.x;
+      DroneState->Pose.OrientationQuat.Y = Msg.pose.pose.orientation.y;
+      DroneState->Pose.OrientationQuat.Z = Msg.pose.pose.orientation.z;
+      DroneState->Pose.OrientationQuat.W = Msg.pose.pose.orientation.w;
+      for (u32 I = 0; I < ArrayCount(DroneState->Pose.Convariance) &&
+                      I < ArrayCount(Msg.pose.covariance);
+           I++) {
+        DroneState->Pose.Convariance[I] = Msg.pose.covariance[I];
+      }
+    }
     geometry_msgs__msg__PoseWithCovarianceStamped__fini(&Msg);
   } break;
   case gui_ros_message_type_quat: {
@@ -214,6 +256,24 @@ int GUIRosHandleNextMessage(gui_ros_topic_subscription *Sub) {
 
     RCLReturnCode =
         rcl_take(&Sub->RCLSubscription, &Msg, &RCLMessageInfo, NULL);
+    if (RCLReturnCode == RCL_RET_OK) {
+      DroneState->ReferenceFilterQuat.x = Msg.x;
+      DroneState->ReferenceFilterQuat.y = Msg.x;
+      DroneState->ReferenceFilterQuat.z = Msg.x;
+
+      DroneState->ReferenceFilterQuat.qw = Msg.qw;
+      DroneState->ReferenceFilterQuat.qx = Msg.qx;
+      DroneState->ReferenceFilterQuat.qy = Msg.qy;
+      DroneState->ReferenceFilterQuat.qz = Msg.qz;
+
+      DroneState->ReferenceFilterQuat.x_dot = Msg.x_dot;
+      DroneState->ReferenceFilterQuat.y_dot = Msg.y_dot;
+      DroneState->ReferenceFilterQuat.z_dot = Msg.z_dot;
+      DroneState->ReferenceFilterQuat.roll_dot = Msg.roll_dot;
+      DroneState->ReferenceFilterQuat.pitch_dot = Msg.pitch_dot;
+      DroneState->ReferenceFilterQuat.yaw_dot = Msg.yaw_dot;
+    }
+
     vortex_msgs__msg__ReferenceFilterQuat__fini(&Msg);
   } break;
   case gui_ros_message_type_operationmode: {
@@ -222,6 +282,9 @@ int GUIRosHandleNextMessage(gui_ros_topic_subscription *Sub) {
 
     RCLReturnCode =
         rcl_take(&Sub->RCLSubscription, &Msg, &RCLMessageInfo, NULL);
+    if (RCLReturnCode == RCL_RET_OK) {
+      DroneState->OperationMode = Msg.operation_mode;
+    }
     vortex_msgs__msg__OperationMode__fini(&Msg);
   } break;
   case gui_ros_message_type_thrusterforces: {
