@@ -226,11 +226,12 @@ int main(int, char**)
 
     
 
-
+    gui_drone_state DroneState = {};
     PlatformInitializeNetworkLib();
     platform_ip ServerIP = PlatformIP("127.0.0.1");
-    platform_socket Server = PlatformConnect(ServerIP, 2100);
+    platform_socket Server = PlatformConnect(ServerIP, 2100,1);
     u64 TimeSiceNetworkConnect = SDL_GetTicks();
+    u64 TimeSiceLastPacket = {};
     // Main loop
     bool done = false;
     bool tilkoblet = false;
@@ -239,19 +240,28 @@ int main(int, char**)
     
 
 
-#ifdef __EMSCRIPTEN__
-    // For an Emscripten build we are disabling file-system access, so let's not attempt to do a fopen() of the imgui.ini file.
-    // You may manually call LoadIniSettingsFromMemory() to load settings from your own storage.
-    io.IniFilename = nullptr;
-    EMSCRIPTEN_MAINLOOP_BEGIN
-#else
+
     while (!done)
-#endif 
     {
-        if (!Server.IsValid && ImGui::IsKeyPressed(ImGuiKey_C, true)) {
+
+
+        for (;;) {
+            s64 Bytes = PlatformRecv(&Server, (u8*)&DroneState, sizeof(DroneState));
+            if (Bytes > 0) {
+                TimeSiceLastPacket = SDL_GetTicks();
+            }
+            else {
+                break;
+            }
+        }
+
+        if (!(Server.State ==platform_socket_state_connecting || 
+            Server.State == platform_socket_state_valid)) {
             u64 ThisTime = SDL_GetTicks();
             if (ThisTime - TimeSiceNetworkConnect > 1000) {
-                Server = PlatformConnect(ServerIP, 2100);
+                //PlatformCloseSocket(&Server);
+                Server = PlatformConnect(ServerIP, 2100,1);
+                PlatformSocketSetNonBlocking(&Server);
                 TimeSiceNetworkConnect = ThisTime;
             }
         }
@@ -298,8 +308,6 @@ int main(int, char**)
             toGUIConsole("W pressed, switching picture.");
         }    
         {
-            gui_drone_state DroneState = {};
-            PlatformRecv(&Server,(u8*)&DroneState,sizeof(DroneState));
 
             static float f = 0.0f;
             static int counter = 0;
@@ -327,7 +335,7 @@ int main(int, char**)
 
             if (ImGui::BeginMainMenuBar()){
                 ImGui::SetCursorPosX(ImGui::GetStyle().WindowPadding.x);
-                if (Server.IsValid){                 
+                if (Server.State == platform_socket_state_valid){
                 ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "On");
                 }
                 else{
@@ -388,6 +396,7 @@ int main(int, char**)
             if (Visible["video"]){
 
                 ImGui::Begin("Memes", &Visible["video"]);   // X i vinduet setter Visible["video"] = false
+
                 u8* FramePixels;
                 if (GetLatestFrame(&VideoFrames, &FramePixels))   // Bare når det finnes en ny frame
                 {
@@ -407,13 +416,21 @@ int main(int, char**)
             }
 
             //Console window
-            if (Visible["console"]){ 
+            if (Visible["console"]){
                 drawConsole(&Visible["console"]);
             }
 
-            
-            ImGui::Begin("Generell");
 
+
+            s64 DisplayTime = 0;
+            if (TimeSiceLastPacket) {
+                DisplayTime = SDL_GetTicks() - TimeSiceLastPacket;
+            }
+            ImGui::Begin("Generell");
+            ImGui::Text("TimeSinceLastPacket = %d", DisplayTime);
+            ImGui::Text("Pose.Pos.X = %f", DroneState.Pose.Position.X);
+
+            
             ImGui::End();
             
 
