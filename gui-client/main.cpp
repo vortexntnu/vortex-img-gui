@@ -22,10 +22,11 @@
 #include <implot_demo.cpp>
 
 
-
+#include "widgets/console.cpp"
 #include "widgets/video.cpp"
 #include "widgets/control/control-plot.cpp"
-#include "widgets/console.cpp"
+#include "widgets/control/control-plot-1.cpp"
+#include "widgets/full_pose.cpp"
 
 #include <map>      // std::map (dictionary)
 #include <string>   // std::string
@@ -305,9 +306,6 @@ int main(int, char**)
             static int counter = 0;
         }
         {   
-            
-             
-
             ImGui::PushStyleColor(ImGuiCol_TitleBgActive, ImVec4(0.8f, 0.1f, 0.1f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_TitleBg, ImVec4(0.3f, 0.05f, 0.05f, 1.0f));
             ImGui::Begin("Vortex NTNU official W key press detection");
@@ -341,6 +339,8 @@ int main(int, char**)
                 }
                 if(ImGui::BeginMenu("Control")){
                     if(ImGui::MenuItem("Control-plot")) Visible["control-plot"] = !Visible["control-plot"];
+                    if(ImGui::MenuItem("Control-plot-1")) Visible["control-plot-1"] = !Visible["control-plot-1"];
+                    if(ImGui::MenuItem("full_pose")) Visible["full_pose"] = !Visible["full_pose"];
                     ImGui::EndMenu();
                 }
                 if(ImGui::BeginMenu("Perception")){
@@ -348,9 +348,10 @@ int main(int, char**)
                     ImGui::EndMenu();
                 }
                 if(ImGui::BeginMenu("GUI-Console")){
-                    if(ImGui::MenuItem("Console")) Visible["console"] = !Visible["console"];
-                    //guiConsoleWindow = !guiConsoleWindow;
-                    
+                    if(ImGui::MenuItem("Console")) Visible["console"] = !Visible["console"]; 
+                    ImGui::EndMenu();
+                }
+                if(ImGui::BeginMenu("Other")){
                     ImGui::EndMenu();
                 }
                 
@@ -401,15 +402,25 @@ int main(int, char**)
                 ImGui::End();
             }
 
-            //Control plot
+            //Control plotf
             if (Visible["control-plot"]){
                 drawControlPlot(&Visible["control-plot"]);
+            }
+
+            //Control plotf
+            if (Visible["control-plot-1"]){
+                drawControlPlot_1(&Visible["control-plot-1"]);
             }
 
             //Console window
             if (Visible["console"]){ 
                 drawConsole(&Visible["console"]);
             }
+            //Console window
+            if (Visible["full_pose"]){ 
+                drawFull_Pose(&Visible["full_pose"]);
+            }
+
 
             
             ImGui::Begin("Generell");
