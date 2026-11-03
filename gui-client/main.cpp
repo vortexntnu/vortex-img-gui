@@ -354,7 +354,7 @@ int main(int, char**)
                     if(ImGui::MenuItem("Video")) Visible["video"] = !Visible["video"];
                     ImGui::EndMenu();
                 }
-                DrawEmbeddedMenu(&Visible["El-houses"], &Visible["PCB status"], &Visible["Thrusters"]);
+                DrawEmbeddedMenu(&Visible["El-houses"], &Visible["PCB status"], &Visible["Thrusters"],&Visible["Actuators"]);
                 
                 
                 if(ImGui::BeginMenu("GUI-Console")){
@@ -425,7 +425,7 @@ int main(int, char**)
 
             
             DrawGeneralPage(&DroneState, &Visible["general"]);
-            DrawEmbeddedWindows(&DroneState, &Visible["El-houses"], &Visible["PCB status"], &Visible["Thrusters"]);
+            DrawEmbeddedWindows(&DroneState, &Visible["El-houses"], &Visible["PCB status"], &Visible["Thrusters"],&Visible["Actuators"]);
             
 
 

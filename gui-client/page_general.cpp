@@ -100,5 +100,7 @@ void DrawGeneralPage(gui_drone_state* DroneState, bool* IsOpen) {
     ImGui::Text("Posisjon [m]:      X %7.2f   Y %7.2f   Z %7.2f", Pose->Position.X, Pose->Position.Y, Pose->Position.Z);
     ImGui::Text("Orientering [deg]: R %7.2f   P %7.2f   Y %7.2f", Angles.Roll, Angles.Pitch, Angles.Yaw);
 
+    ImGui::Text("Battery Status");
+
     ImGui::End();
 }
