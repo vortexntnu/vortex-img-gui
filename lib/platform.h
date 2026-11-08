@@ -7,10 +7,11 @@ struct platform_ip {
 };
 
 enum {
-	platform_socket_state_invalid,
-	platform_socket_state_connecting,
-	platform_socket_state_valid,
-	platform_socket_state_closed,
+  platform_socket_state_invalid,
+  platform_socket_state_connecting,
+  platform_socket_state_valid,
+  platform_socket_state_closed,
+  platform_socket_state_error,
 };
 
 struct platform_socket {
@@ -28,8 +29,8 @@ void PlatformInitializeNetworkLib();
 void PlatformFreeNetworkLib();
 s64 PlatformSend(platform_socket *Socket, u8 *Data, s64 DataLength);
 s64 PlatformRecv(platform_socket *Socket, u8 *Buffer, s64 BufferSize);
-void PlatformSocketSetNonBlocking(platform_socket* Socket);
-void PlatformSocketSetBlocking(platform_socket* Socket);
+void PlatformSocketSetNonBlocking(platform_socket *Socket);
+void PlatformSocketSetBlocking(platform_socket *Socket);
 
 void Failure() { int a = 0; }
 
