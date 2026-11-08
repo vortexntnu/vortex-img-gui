@@ -26,6 +26,9 @@
 #include "widgets/video.cpp"
 #include "widgets/control/control-plot.cpp"
 #include "widgets/console.cpp"
+#include "drone_commands.cpp"
+#include "page_general.cpp"
+#include "embedded.cpp"
 
 #include <map>      // std::map (dictionary)
 #include <string>   // std::string
@@ -159,6 +162,7 @@ int main(int, char**)
 
     // Hvilke vinduer som er åpne. Lagres og lastes sammen med layout-filene
     std::map<std::string, bool> Visible;
+    Visible["general"] = true;                           // Åpen hvis layouten ikke sier noe annet
 
     ImGuiSettingsHandler VortexHandler;
     VortexHandler.TypeName   = "Vortex";                 // Navnet i [Vortex][...]
@@ -348,6 +352,8 @@ int main(int, char**)
                     ImGui::EndMenu();
                 }
                 if(ImGui::BeginMenu("Control")){
+                    if(ImGui::MenuItem("Video")) Visible["video"] = !Visible["video"];
+                    if(ImGui::MenuItem("Generell")) Visible["general"] = !Visible["general"];
                     if(ImGui::MenuItem("Control-plot")) Visible["control-plot"] = !Visible["control-plot"];
                     ImGui::EndMenu();
                 }
@@ -355,6 +361,9 @@ int main(int, char**)
                     if(ImGui::MenuItem("Video")) Visible["video"] = !Visible["video"];
                     ImGui::EndMenu();
                 }
+                DrawEmbeddedMenu(&Visible["El-houses"], &Visible["PCB status"], &Visible["Thrusters"],&Visible["Actuators"]);
+                
+                
                 if(ImGui::BeginMenu("GUI-Console")){
                     if(ImGui::MenuItem("Console")) Visible["console"] = !Visible["console"];
                     //guiConsoleWindow = !guiConsoleWindow;
@@ -421,16 +430,15 @@ int main(int, char**)
             }
 
 
+            DrawGeneralPage(&DroneState, &Visible["general"]);
+            DrawEmbeddedWindows(&DroneState, &Visible["El-houses"], &Visible["PCB status"], &Visible["Thrusters"],&Visible["Actuators"]);
 
             s64 DisplayTime = 0;
             if (TimeSiceLastPacket) {
                 DisplayTime = SDL_GetTicks() - TimeSiceLastPacket;
             }
-            ImGui::Begin("Generell");
+            ImGui::Begin("Nettverk");                // Var "Generell" på main, kolliderte med Generell-siden
             ImGui::Text("TimeSinceLastPacket = %d", DisplayTime);
-            ImGui::Text("Pose.Pos.X = %f", DroneState.Pose.Position.X);
-
-            
             ImGui::End();
             
 
