@@ -5,8 +5,8 @@ set CompilerFlags=-Od -nologo -MD -Oi -W4 -FC -Z7
 set LinkerFlags=-incremental:no -opt:ref
 
  call vcvarsall x64
-IF NOT EXIST BuildOutput mkdir BuildOutput
-pushd BuildOutput || goto bad
+IF NOT EXIST Build mkdir Build
+pushd Build || goto bad
 
 REM cl %CompilerFlags% ../hello.c /P /C /I../extern\SDA3\include 
 REM cl %CompilerFlags% /Tphello.i /link %LinkerFlags%  || goto bad

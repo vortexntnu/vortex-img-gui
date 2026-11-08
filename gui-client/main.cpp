@@ -70,8 +70,6 @@ static void VortexWriteAll(ImGuiContext*, ImGuiSettingsHandler* Handler, ImGuiTe
 }
 //===============================================================================================================
 
-
-
 int main(int, char**)
 {
     // Setup SDL
@@ -162,20 +160,45 @@ int main(int, char**)
     std::map<std::string, bool> Visible;
 
     ImGuiSettingsHandler VortexHandler;
-    VortexHandler.TypeName   = "Vortex";                 // Navnet i [Vortex][...]
+    VortexHandler.TypeName   = "Vortex";                 //Navnet i [Vortex][...]
     VortexHandler.TypeHash   = ImHashStr("Vortex");
     VortexHandler.ReadOpenFn = VortexReadOpen;
     VortexHandler.ReadLineFn = VortexReadLine;
     VortexHandler.WriteAllFn = VortexWriteAll;
-    VortexHandler.UserData   = &Visible;                 // Gir funksjonene tilgang til dictionary-en
+    VortexHandler.UserData   = &Visible;                 //Gir funksjonene tilgang til dictionary-en
     ImGui::AddSettingsHandler(&VortexHandler);
 
     const char* ExeFolder = SDL_GetBasePath(); // f.eks. "...\gui-client\BuildOutput\"
+
+
+//========================================  LAYOUT SYNC FOLDER ==================================================
+
+    char LayoutFolder[512], TemplateLayoutFolder[512];
+    snprintf(LayoutFolder,   sizeof(LayoutFolder),   "%slayouts",    ExeFolder);
+    snprintf(TemplateLayoutFolder,   sizeof(TemplateLayoutFolder),   "%s../layouts",    ExeFolder);
+    SDL_CreateDirectory(LayoutFolder);
+
+    int Count = 0;
+    char** Files = SDL_GlobDirectory(TemplateLayoutFolder, "*.ini", 0, &Count);
+    if (Files == nullptr) {
+        printf("Fant ikke mal-layouts: %s\n", SDL_GetError());
+    } else {
+        for (int i = 0; i < Count; i++) {
+            char Src[512], Dst[512];
+            snprintf(Src, sizeof(Src), "%s/%s", TemplateLayoutFolder, Files[i]);
+            snprintf(Dst, sizeof(Dst), "%s/%s", LayoutFolder, Files[i]);
+            if (!SDL_GetPathInfo(Dst, nullptr)) SDL_CopyFile(Src, Dst);
+        }
+        SDL_free(Files);
+    }
+
     char Path[512];
-    snprintf(Path, sizeof(Path), "%s../layouts/standard.ini", ExeFolder); 
+    snprintf(Path, sizeof(Path), "%slayouts/standard.ini", ExeFolder); 
     ImGui::LoadIniSettingsFromDisk(Path);    // Layout 1 lastes ved oppstart 
     std::string PendingLoadLayout;                   // Full sti til layout som skal lastes. Tom = ingenting
     s32 PendingSaveLayout = 0;                       // 0 = ingenting skal lagres
+
+//================================================================================================
 
     // Setup Dear ImGui style
     ImGui::StyleColorsClassic();
@@ -361,9 +384,9 @@ int main(int, char**)
                 ImGui::SetCursorPosX(RightEdge - ButtonWidth - 10);
                 if (ImGui::BeginMenu("Layouts")) {
                     char Folder[512];
-                    snprintf(Folder, sizeof(Folder), "%s../layouts", ExeFolder);
+                    snprintf(Folder, sizeof(Folder), "%slayouts", ExeFolder);
                     int Count = 0;
-                    char** Files = SDL_GlobDirectory(Folder, "*.ini", 0, &Count);
+                    char** Files = SDL_GlobDirectory(Folder, nullptr, 0, &Count);
                     if (Files != nullptr) {
                         for (int i = 0; i < Count; i++) {
                             if (ImGui::MenuItem(Files[i])) PendingLoadLayout = std::string(Folder) + "/" + Files[i];  // Kopi av hele stien
@@ -442,7 +465,7 @@ int main(int, char**)
         // Lagre layout når Enter er trykket i "Lagre layout som"
         if (PendingSaveLayout) {
             char Path[512];
-            snprintf(Path, sizeof(Path), "%s../layouts/%s.ini", ExeFolder, ny);
+            snprintf(Path, sizeof(Path), "%slayouts/%s.ini", ExeFolder, ny);
             ImGui::SaveIniSettingsToDisk(Path);
             PendingSaveLayout = 0;
             ny[0] = '\0';                            // Tøm feltet til neste gang
