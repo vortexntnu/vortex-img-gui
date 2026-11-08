@@ -51,10 +51,10 @@ int main(int ArgC, char **ArgV) {
   s32 SleepTime = 5;
   platform_socket ListenSocket =
       PlatformBindAddressAndListen(ListenAddress, 2100);
-  while (ListenSocket.IsValid) {
+  while (ListenSocket.State == platform_socket_state_valid) {
 
     platform_socket AcceptedSocket = PlatformAccept(&ListenSocket);
-    while (AcceptedSocket.IsValid) {
+    while (AcceptedSocket.State == platform_socket_state_valid) {
 
       while (!GUIRosHandleNextMessage(&KillSwitchSub, &DroneState))
         ;
@@ -70,7 +70,8 @@ int main(int ArgC, char **ArgV) {
         ;
       PlatformSend(&AcceptedSocket, (u8 *)&DroneState, sizeof(DroneState));
       timespec SleepTime = {};
-      SleepTime.tv_nsec = 100000;
+      // SleepTime.tv_sec = 1;
+      SleepTime.tv_nsec = 10000000;
       nanosleep(&SleepTime, NULL);
     }
   }

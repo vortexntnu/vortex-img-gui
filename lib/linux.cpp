@@ -1,3 +1,4 @@
+#include <asm-generic/errno.h>
 #ifndef platform_h
 #include "platform.h"
 #endif
@@ -8,14 +9,15 @@
 
 #include <cerrno>
 #include <cstring>
+#include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
 
-platform_socket PlatformConnect(platform_ip IP, s32 Port) {
+platform_socket PlatformConnect(platform_ip IP, s32 Port, b32 NonBlocking) {
   platform_socket Result = {};
   int Error = 0;
-  int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-  if (sockfd == -1) {
+  Result.SocketHandle = socket(AF_INET, SOCK_STREAM, 0);
+  if (Result.SocketHandle == -1) {
     perror("socket");
     Error++;
     Failure();
@@ -28,17 +30,28 @@ platform_socket PlatformConnect(platform_ip IP, s32 Port) {
     Error++;
     Failure();
   }
+  if (NonBlocking) {
+    PlatformSocketSetNonBlocking(&Result);
+  }
 
-  if (connect(sockfd, (sockaddr *)&addr, sizeof(addr)) == -1) {
-    perror("connect");
-    Error++;
-    Failure();
+  if (connect(Result.SocketHandle, (sockaddr *)&addr, sizeof(addr)) == -1) {
+    int ErrorCode = errno;
+    if (Result.NonBlocking && ErrorCode == EINPROGRESS) {
+
+    } else {
+      perror("connect");
+      Error++;
+      Failure();
+    }
   }
   if (!Error) {
-    Result.SocketHandle = sockfd;
-    Result.IsValid = 1;
+    Result.State = platform_socket_state_valid;
+    if (NonBlocking) {
+      Result.State = platform_socket_state_connecting;
+    }
   } else {
-    close(sockfd);
+    close(Result.SocketHandle);
+    Result.SocketHandle = 0;
   }
   return Result;
 }
@@ -83,7 +96,7 @@ platform_socket PlatformBindAddressAndListen(platform_ip IP, s32 Port) {
   }
 
   if (!Error) {
-    Result.IsValid = 1;
+    Result.State = platform_socket_state_valid;
     Result.SocketHandle = sockfd;
   } else {
     close(sockfd);
@@ -102,36 +115,104 @@ platform_socket PlatformAccept(platform_socket *ListenSocket) {
   }
   if (Error) {
     close(ListenSocket->SocketHandle);
-    ListenSocket->IsValid = 0;
+    ListenSocket->State = platform_socket_state_invalid;
   } else {
     Result.SocketHandle = clientfd;
-    Result.IsValid = 1;
+    Result.State = platform_socket_state_valid;
   }
   return Result;
 }
 void PlatformCloseSocket(platform_socket *Socket) {
   close(Socket->SocketHandle);
-  Socket->IsValid = 0;
+  Socket->State = platform_socket_state_closed;
 }
 void PlatformInitializeNetworkLib() {}
 void PlatformFreeNetworkLib() {}
 s64 PlatformSend(platform_socket *Socket, u8 *Data, s64 DataLength) {
-  s64 BytesSendt = send(Socket->SocketHandle, Data, DataLength, 0);
-  if (BytesSendt <= 0) {
-    PlatformCloseSocket(Socket);
-    if (BytesSendt < 0) {
+  s64 BytesSendt = send(Socket->SocketHandle, Data, DataLength, MSG_NOSIGNAL);
+  if (BytesSendt < 0) {
+    int error = errno;
+    if (errno == EPIPE) {
+      PlatformCloseSocket(Socket);
+    } else {
+      PlatformCloseSocket(Socket);
       Failure();
+    }
+    if (BytesSendt == 0) {
+      PlatformCloseSocket(Socket);
     }
   }
   return BytesSendt;
 }
 s64 PlatformRecv(platform_socket *Socket, u8 *Buffer, s64 BufferSize) {
+  s64 Result = 0;
   s64 BytesRecieved = recv(Socket->SocketHandle, Buffer, BufferSize, 0);
-  if (BytesRecieved <= 0) {
-    PlatformCloseSocket(Socket);
-    if (BytesRecieved < 0) {
-      Failure();
+  if (BytesRecieved < 0) {
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      if (!Socket->NonBlocking) {
+        Failure();
+        PlatformCloseSocket(Socket);
+        Socket->State = platform_socket_state_error;
+      } else {
+      }
     }
   }
-  return 0;
+  if (BytesRecieved == 0) {
+    PlatformCloseSocket(Socket);
+    Socket->State = platform_socket_state_closed;
+  }
+  if (BytesRecieved > 0) {
+    if (Socket->State == platform_socket_state_connecting) {
+      Socket->State = platform_socket_state_valid;
+    }
+    Result = BytesRecieved;
+  }
+  return Result;
+}
+
+void PlatformSocketSetNonBlocking(platform_socket *Socket) {
+  int flags = fcntl(Socket->SocketHandle, F_GETFL, 0);
+
+  int Success = 1;
+  if (flags == -1) {
+    perror("fcntl F_GETFL");
+    Failure();
+    Success = 0;
+  }
+
+  if (Success &&
+      fcntl(Socket->SocketHandle, F_SETFL, flags | O_NONBLOCK) == -1) {
+    perror("fcntl F_SETFL");
+    Failure();
+    Success = 0;
+  }
+  int ReadFlags = 0;
+  fcntl(Socket->SocketHandle, F_GETFL, ReadFlags | O_NONBLOCK);
+  if (!Success) {
+    PlatformCloseSocket(Socket);
+    Socket->State = platform_socket_state_error;
+  }
+  Socket->NonBlocking = 1;
+}
+
+void PlatformSocketSetBlocking(platform_socket *Socket) {
+  int flags = fcntl(Socket->SocketHandle, F_GETFL, 0);
+
+  int Success = 1;
+  if (flags == -1) {
+    perror("fcntl F_GETFL");
+    Failure();
+    Success = 0;
+  }
+
+  if (fcntl(Socket->SocketHandle, F_SETFL, flags & ~O_NONBLOCK) == -1) {
+    perror("fcntl F_SETFL");
+    Failure();
+    Success = 0;
+  }
+  if (!Success) {
+    PlatformCloseSocket(Socket);
+    Socket->State = platform_socket_state_error;
+  }
+  Socket->NonBlocking = 0;
 }

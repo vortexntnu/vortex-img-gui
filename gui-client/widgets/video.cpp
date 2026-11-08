@@ -7,7 +7,7 @@
 #include <atomic>     // std::atomic
 #include <utility>    // std::swap
 #include <string.h>   // memcpy
-#include "../lib/typedef.h"
+#include "../../lib/typedef.h"
 
 
 // Tre faste bildebuffere som gjenbrukes. Kameraet skriver, GUI-et leser den nyeste.

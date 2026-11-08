@@ -6,12 +6,13 @@ pushd build || exit
 g++ -I../../extern/imgui \
   -I../../extern/SDA3/include/ \
   -I../../extern/imgui/backends/ \
+  -I ../../extern/implot/ \
   -DPLATFORM_LINUX \
   ../main.cpp \
   -L../../extern-lib/ \
   ../../extern-lib/libSDL3.so.0.4.16 \
   -Wl,-rpath,'$ORIGIN' \
-  -g -O0 \
+  -g3 -O0 -fno-omit-frame-pointer \
   -lm -lpthread -o gui-client
 
 cp ../../extern-lib/libSDL3.so.0.4.16 .
