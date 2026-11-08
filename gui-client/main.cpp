@@ -22,9 +22,11 @@
 #include <implot_demo.cpp>
 
 
-
+#include "widgets/console.cpp"
 #include "widgets/video.cpp"
 #include "widgets/control/control-plot.cpp"
+#include "widgets/control/control-plot-1.cpp"
+#include "widgets/full_pose.cpp"
 #include "widgets/console.cpp"
 #include "drone_commands.cpp"
 #include "page_general.cpp"
@@ -71,8 +73,6 @@ static void VortexWriteAll(ImGuiContext*, ImGuiSettingsHandler* Handler, ImGuiTe
     Out->append("\n");
 }
 //===============================================================================================================
-
-
 
 int main(int, char**)
 {
@@ -165,20 +165,45 @@ int main(int, char**)
     Visible["general"] = true;                           // Åpen hvis layouten ikke sier noe annet
 
     ImGuiSettingsHandler VortexHandler;
-    VortexHandler.TypeName   = "Vortex";                 // Navnet i [Vortex][...]
+    VortexHandler.TypeName   = "Vortex";                 //Navnet i [Vortex][...]
     VortexHandler.TypeHash   = ImHashStr("Vortex");
     VortexHandler.ReadOpenFn = VortexReadOpen;
     VortexHandler.ReadLineFn = VortexReadLine;
     VortexHandler.WriteAllFn = VortexWriteAll;
-    VortexHandler.UserData   = &Visible;                 // Gir funksjonene tilgang til dictionary-en
+    VortexHandler.UserData   = &Visible;                 //Gir funksjonene tilgang til dictionary-en
     ImGui::AddSettingsHandler(&VortexHandler);
 
     const char* ExeFolder = SDL_GetBasePath(); // f.eks. "...\gui-client\BuildOutput\"
+
+
+//========================================  LAYOUT SYNC FOLDER ==================================================
+
+    char LayoutFolder[512], TemplateLayoutFolder[512];
+    snprintf(LayoutFolder,   sizeof(LayoutFolder),   "%slayouts",    ExeFolder);
+    snprintf(TemplateLayoutFolder,   sizeof(TemplateLayoutFolder),   "%s../layouts",    ExeFolder);
+    SDL_CreateDirectory(LayoutFolder);
+
+    int Count = 0;
+    char** Files = SDL_GlobDirectory(TemplateLayoutFolder, "*.ini", 0, &Count);
+    if (Files == nullptr) {
+        printf("Fant ikke mal-layouts: %s\n", SDL_GetError());
+    } else {
+        for (int i = 0; i < Count; i++) {
+            char Src[512], Dst[512];
+            snprintf(Src, sizeof(Src), "%s/%s", TemplateLayoutFolder, Files[i]);
+            snprintf(Dst, sizeof(Dst), "%s/%s", LayoutFolder, Files[i]);
+            if (!SDL_GetPathInfo(Dst, nullptr)) SDL_CopyFile(Src, Dst);
+        }
+        SDL_free(Files);
+    }
+
     char Path[512];
-    snprintf(Path, sizeof(Path), "%s../layouts/standard.ini", ExeFolder); 
+    snprintf(Path, sizeof(Path), "%slayouts/standard.ini", ExeFolder); 
     ImGui::LoadIniSettingsFromDisk(Path);    // Layout 1 lastes ved oppstart 
     std::string PendingLoadLayout;                   // Full sti til layout som skal lastes. Tom = ingenting
     s32 PendingSaveLayout = 0;                       // 0 = ingenting skal lagres
+
+//================================================================================================
 
     // Setup Dear ImGui style
     ImGui::StyleColorsClassic();
@@ -317,9 +342,6 @@ int main(int, char**)
             static int counter = 0;
         }
         {   
-            
-             
-
             ImGui::PushStyleColor(ImGuiCol_TitleBgActive, ImVec4(0.8f, 0.1f, 0.1f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_TitleBg, ImVec4(0.3f, 0.05f, 0.05f, 1.0f));
             ImGui::Begin("Vortex NTNU official W key press detection");
@@ -355,6 +377,8 @@ int main(int, char**)
                     if(ImGui::MenuItem("Video")) Visible["video"] = !Visible["video"];
                     if(ImGui::MenuItem("Generell")) Visible["general"] = !Visible["general"];
                     if(ImGui::MenuItem("Control-plot")) Visible["control-plot"] = !Visible["control-plot"];
+                    if(ImGui::MenuItem("Control-plot-1")) Visible["control-plot-1"] = !Visible["control-plot-1"];
+                    if(ImGui::MenuItem("full_pose")) Visible["full_pose"] = !Visible["full_pose"];
                     ImGui::EndMenu();
                 }
                 if(ImGui::BeginMenu("Perception")){
@@ -365,9 +389,10 @@ int main(int, char**)
                 
                 
                 if(ImGui::BeginMenu("GUI-Console")){
-                    if(ImGui::MenuItem("Console")) Visible["console"] = !Visible["console"];
-                    //guiConsoleWindow = !guiConsoleWindow;
-                    
+                    if(ImGui::MenuItem("Console")) Visible["console"] = !Visible["console"]; 
+                    ImGui::EndMenu();
+                }
+                if(ImGui::BeginMenu("Other")){
                     ImGui::EndMenu();
                 }
                 
@@ -377,9 +402,9 @@ int main(int, char**)
                 ImGui::SetCursorPosX(RightEdge - ButtonWidth - 10);
                 if (ImGui::BeginMenu("Layouts")) {
                     char Folder[512];
-                    snprintf(Folder, sizeof(Folder), "%s../layouts", ExeFolder);
+                    snprintf(Folder, sizeof(Folder), "%slayouts", ExeFolder);
                     int Count = 0;
-                    char** Files = SDL_GlobDirectory(Folder, "*.ini", 0, &Count);
+                    char** Files = SDL_GlobDirectory(Folder, nullptr, 0, &Count);
                     if (Files != nullptr) {
                         for (int i = 0; i < Count; i++) {
                             if (ImGui::MenuItem(Files[i])) PendingLoadLayout = std::string(Folder) + "/" + Files[i];  // Kopi av hele stien
@@ -419,15 +444,25 @@ int main(int, char**)
                 ImGui::End();
             }
 
-            //Control plot
+            //Control plotf
             if (Visible["control-plot"]){
                 drawControlPlot(&Visible["control-plot"]);
+            }
+
+            //Control plotf
+            if (Visible["control-plot-1"]){
+                drawControlPlot_1(&Visible["control-plot-1"]);
             }
 
             //Console window
             if (Visible["console"]){
                 drawConsole(&Visible["console"]);
             }
+            //Console window
+            if (Visible["full_pose"]){ 
+                drawFull_Pose(&Visible["full_pose"]);
+            }
+
 
 
             DrawGeneralPage(&DroneState, &Visible["general"]);
@@ -456,7 +491,7 @@ int main(int, char**)
         // Lagre layout når Enter er trykket i "Lagre layout som"
         if (PendingSaveLayout) {
             char Path[512];
-            snprintf(Path, sizeof(Path), "%s../layouts/%s.ini", ExeFolder, ny);
+            snprintf(Path, sizeof(Path), "%slayouts/%s.ini", ExeFolder, ny);
             ImGui::SaveIniSettingsToDisk(Path);
             PendingSaveLayout = 0;
             ny[0] = '\0';                            // Tøm feltet til neste gang
