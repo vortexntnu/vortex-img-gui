@@ -1,3 +1,4 @@
-*/build/
+*/BuildOutput/
+*/build/*
 */.vs/
 .vscode/

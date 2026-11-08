@@ -27,6 +27,10 @@
 #include "widgets/control/control-plot.cpp"
 #include "widgets/control/control-plot-1.cpp"
 #include "widgets/full_pose.cpp"
+#include "widgets/console.cpp"
+#include "drone_commands.cpp"
+#include "page_general.cpp"
+#include "embedded.cpp"
 
 #include <map>      // std::map (dictionary)
 #include <string>   // std::string
@@ -158,6 +162,7 @@ int main(int, char**)
 
     // Hvilke vinduer som er åpne. Lagres og lastes sammen med layout-filene
     std::map<std::string, bool> Visible;
+    Visible["general"] = true;                           // Åpen hvis layouten ikke sier noe annet
 
     ImGuiSettingsHandler VortexHandler;
     VortexHandler.TypeName   = "Vortex";                 //Navnet i [Vortex][...]
@@ -250,11 +255,12 @@ int main(int, char**)
 
     
 
-
+    gui_drone_state DroneState = {};
     PlatformInitializeNetworkLib();
     platform_ip ServerIP = PlatformIP("127.0.0.1");
-    platform_socket Server = PlatformConnect(ServerIP, 2100);
+    platform_socket Server = PlatformConnect(ServerIP, 2100,1);
     u64 TimeSiceNetworkConnect = SDL_GetTicks();
+    u64 TimeSiceLastPacket = {};
     // Main loop
     bool done = false;
     bool tilkoblet = false;
@@ -263,19 +269,28 @@ int main(int, char**)
     
 
 
-#ifdef __EMSCRIPTEN__
-    // For an Emscripten build we are disabling file-system access, so let's not attempt to do a fopen() of the imgui.ini file.
-    // You may manually call LoadIniSettingsFromMemory() to load settings from your own storage.
-    io.IniFilename = nullptr;
-    EMSCRIPTEN_MAINLOOP_BEGIN
-#else
+
     while (!done)
-#endif 
     {
-        if (!Server.IsValid && ImGui::IsKeyPressed(ImGuiKey_C, true)) {
+
+
+        for (;;) {
+            s64 Bytes = PlatformRecv(&Server, (u8*)&DroneState, sizeof(DroneState));
+            if (Bytes > 0) {
+                TimeSiceLastPacket = SDL_GetTicks();
+            }
+            else {
+                break;
+            }
+        }
+
+        if (!(Server.State ==platform_socket_state_connecting || 
+            Server.State == platform_socket_state_valid)) {
             u64 ThisTime = SDL_GetTicks();
             if (ThisTime - TimeSiceNetworkConnect > 1000) {
-                Server = PlatformConnect(ServerIP, 2100);
+                //PlatformCloseSocket(&Server);
+                Server = PlatformConnect(ServerIP, 2100,1);
+                PlatformSocketSetNonBlocking(&Server);
                 TimeSiceNetworkConnect = ThisTime;
             }
         }
@@ -322,8 +337,6 @@ int main(int, char**)
             toGUIConsole("W pressed, switching picture.");
         }    
         {
-            drone_state DroneState = {};
-            PlatformRecv(&Server,(u8*)&DroneState,sizeof(DroneState));
 
             static float f = 0.0f;
             static int counter = 0;
@@ -348,7 +361,7 @@ int main(int, char**)
 
             if (ImGui::BeginMainMenuBar()){
                 ImGui::SetCursorPosX(ImGui::GetStyle().WindowPadding.x);
-                if (Server.IsValid){                 
+                if (Server.State == platform_socket_state_valid){
                 ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "On");
                 }
                 else{
@@ -361,6 +374,8 @@ int main(int, char**)
                     ImGui::EndMenu();
                 }
                 if(ImGui::BeginMenu("Control")){
+                    if(ImGui::MenuItem("Video")) Visible["video"] = !Visible["video"];
+                    if(ImGui::MenuItem("Generell")) Visible["general"] = !Visible["general"];
                     if(ImGui::MenuItem("Control-plot")) Visible["control-plot"] = !Visible["control-plot"];
                     if(ImGui::MenuItem("Control-plot-1")) Visible["control-plot-1"] = !Visible["control-plot-1"];
                     if(ImGui::MenuItem("full_pose")) Visible["full_pose"] = !Visible["full_pose"];
@@ -370,6 +385,9 @@ int main(int, char**)
                     if(ImGui::MenuItem("Video")) Visible["video"] = !Visible["video"];
                     ImGui::EndMenu();
                 }
+                DrawEmbeddedMenu(&Visible["El-houses"], &Visible["PCB status"], &Visible["Thrusters"],&Visible["Actuators"]);
+                
+                
                 if(ImGui::BeginMenu("GUI-Console")){
                     if(ImGui::MenuItem("Console")) Visible["console"] = !Visible["console"]; 
                     ImGui::EndMenu();
@@ -412,6 +430,7 @@ int main(int, char**)
             if (Visible["video"]){
 
                 ImGui::Begin("Memes", &Visible["video"]);   // X i vinduet setter Visible["video"] = false
+
                 u8* FramePixels;
                 if (GetLatestFrame(&VideoFrames, &FramePixels))   // Bare når det finnes en ny frame
                 {
@@ -436,7 +455,7 @@ int main(int, char**)
             }
 
             //Console window
-            if (Visible["console"]){ 
+            if (Visible["console"]){
                 drawConsole(&Visible["console"]);
             }
             //Console window
@@ -445,9 +464,16 @@ int main(int, char**)
             }
 
 
-            
-            ImGui::Begin("Generell");
 
+            DrawGeneralPage(&DroneState, &Visible["general"]);
+            DrawEmbeddedWindows(&DroneState, &Visible["El-houses"], &Visible["PCB status"], &Visible["Thrusters"],&Visible["Actuators"]);
+
+            s64 DisplayTime = 0;
+            if (TimeSiceLastPacket) {
+                DisplayTime = SDL_GetTicks() - TimeSiceLastPacket;
+            }
+            ImGui::Begin("Nettverk");                // Var "Generell" på main, kolliderte med Generell-siden
+            ImGui::Text("TimeSinceLastPacket = %d", DisplayTime);
             ImGui::End();
             
 
