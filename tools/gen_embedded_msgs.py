@@ -2,10 +2,14 @@
 """
 Generates GUI structs from ROS .msg files, so drone_state always matches the ROS messages.
 
-    python tools/gen_embedded_msgs.py <path to vortex-msgs/msg>
+    python3 tools/gen_embedded_msgs.py              (finds the .msg files by itself)
+    python3 tools/gen_embedded_msgs.py <msg folder>  (use this folder instead)
 
-Linux:   python3 tools/gen_embedded_msgs.py ~/code/ros2_ws/src/vortex-msgs/msg
-Windows: python tools\\gen_embedded_msgs.py C:\\Users\\jpuer\\vortex\\msgsWORK\\vortex_msgs\\msg
+Where it looks for the .msg files, first match wins:
+    1. The folder given on the command line
+    2. The environment variable VORTEX_MSGS_DIR
+    3. The built vortex_msgs package, if ROS is sourced (share/vortex_msgs/msg)
+    4. A vortex-msgs checkout next to this repo (../vortex-msgs/msg)
 
 Writes two files (commit both, so nobody needs Python or ROS to build):
     lib/embedded_msgs.h                  gui_ structs + enums, used by client and server
@@ -248,6 +252,40 @@ def write_copy(msgs, order):
     return "\n".join(out) + "\n"
 
 
+def find_msg_dir():
+    """Finds the vortex_msgs .msg folder without any path that only exists on one machine."""
+    tried = []
+
+    def ok(path, how):
+        tried.append("%s: %s" % (how, path))
+        return os.path.isdir(path) and any(f.endswith(".msg") for f in os.listdir(path))
+
+    if len(sys.argv) == 2:
+        path = os.path.expanduser(sys.argv[1])
+        if ok(path, "command line"):
+            return path
+        fail("no .msg files in " + path)
+
+    env = os.environ.get("VORTEX_MSGS_DIR")
+    if env and ok(os.path.expanduser(env), "VORTEX_MSGS_DIR"):
+        return os.path.expanduser(env)
+
+    # Set by "source install/setup.bash". colcon installs the .msg files in share/<package>/msg
+    for prefix in os.environ.get("AMENT_PREFIX_PATH", "").split(os.pathsep):
+        if prefix:
+            path = os.path.join(prefix, "share", PACKAGE, "msg")
+            if ok(path, "AMENT_PREFIX_PATH"):
+                return path
+
+    for name in ("vortex-msgs", "vortex_msgs"):
+        path = os.path.join(os.path.dirname(ROOT), name, "msg")
+        if ok(path, "next to this repo"):
+            return path
+
+    fail("could not find the vortex_msgs .msg files. Looked in:\n  " + "\n  ".join(tried) +
+         "\nSource your ROS workspace, set VORTEX_MSGS_DIR, or give the folder on the command line.")
+
+
 def save(path, text):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf8", newline="\n") as f:
@@ -256,9 +294,11 @@ def save(path, text):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    if len(sys.argv) > 2 or (len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help")):
         print(__doc__)
         sys.exit(1)
-    msgs, order = load_all(os.path.expanduser(sys.argv[1]))
+    msg_dir = find_msg_dir()
+    print("reading " + msg_dir)
+    msgs, order = load_all(msg_dir)
     save(OUT_HEADER, write_header(msgs, order))
     save(OUT_COPY, write_copy(msgs, order))
