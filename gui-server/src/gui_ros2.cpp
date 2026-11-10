@@ -20,7 +20,10 @@
 #include "../../lib/drone_state.h"
 #include "util.h"
 
+#include "embedded_msgs_copy.h"
+
 #define GUI_NODE_NAME "vortex_gui_node"
+
 
 struct gui_ros_state {
   rcl_allocator_t RCLAllocator;
@@ -31,6 +34,7 @@ struct gui_ros_state {
   rcl_node_t RCLNode;
 
   rcl_subscription_options_t RCLDefaultSubscriptionOptions;
+  rcl_subscription_options_t RCLLatchedSubscriptionOptions;
 
   bool IsValid;
 };
@@ -45,6 +49,17 @@ enum {
   gui_ros_message_type_quat,
   gui_ros_message_type_operationmode,
   gui_ros_message_type_thrusterforces,
+  gui_ros_message_type_bms_status,
+  gui_ros_message_type_motor_controller_status,
+  gui_ros_message_type_thruster_status,
+  gui_ros_message_type_pcb_status,
+  gui_ros_message_type_power_interface,
+  gui_ros_message_type_hardware_killswitch,
+  gui_ros_message_type_torpedo,
+  gui_ros_message_type_torpedo_count,
+  gui_ros_message_type_dropper,
+  gui_ros_message_type_marker_count,
+  gui_ros_message_type_gripper
 };
 
 struct gui_ros_topic_subscription {
@@ -52,6 +67,7 @@ struct gui_ros_topic_subscription {
   bool IsValid;
 
   int MessageType;
+  int Index; // Which element in DroneState, e.g. 0 for bms_0 -> Bms[0]
   char TopicName[128];
 };
 void InitGUIRosState(gui_ros_state *State, int ArgC, char **ArgV) {
@@ -79,6 +95,13 @@ void InitGUIRosState(gui_ros_state *State, int ArgC, char **ArgV) {
   }
   State->RCLDefaultSubscriptionOptions = rcl_subscription_get_default_options();
   State->RCLDefaultSubscriptionOptions.qos = rmw_qos_profile_sensor_data;
+
+  State->RCLLatchedSubscriptionOptions = rcl_subscription_get_default_options();
+  State->RCLLatchedSubscriptionOptions.qos = rmw_qos_profile_default;
+  State->RCLLatchedSubscriptionOptions.qos.history = RMW_QOS_POLICY_HISTORY_KEEP_LAST;
+  State->RCLLatchedSubscriptionOptions.qos.depth = 1; // Only the last value matters
+  State->RCLLatchedSubscriptionOptions.qos.reliability = RMW_QOS_POLICY_RELIABILITY_RELIABLE;
+  State->RCLLatchedSubscriptionOptions.qos.durability = RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL;
   if (Error) {
     *State = gui_ros_state{};
     LogError("Failed to initialize ros state");
@@ -108,11 +131,18 @@ void FreeGUIRosState(gui_ros_state *State) {
   if (RCLReturnCode != RCL_RET_OK) {
     LogError("RCL error during rcl_subscription_options_fini\n");
   }
+  RCLReturnCode =
+      rcl_subscription_options_fini(&State->RCLLatchedSubscriptionOptions);
+  if (RCLReturnCode != RCL_RET_OK) {
+    LogError("RCL error during rcl_subscription_options_fini\n");
+  }
 }
 
 gui_ros_topic_subscription GUIRosSubscribeToTopic(gui_ros_state *State,
                                                   const char *Topic,
-                                                  int MessageType) {
+                                                  int MessageType,
+                                                  int Index = 0,
+                                                  bool Latched = false) {
   gui_ros_topic_subscription Result = {};
 
   if (CountChar(Topic) > ArrayCount(Result.TopicName) + 1) {
@@ -120,6 +150,7 @@ gui_ros_topic_subscription GUIRosSubscribeToTopic(gui_ros_state *State,
     return Result;
   }
   Result.MessageType = MessageType;
+  Result.Index = Index;
   FromCStrCopyToDest(Topic, Result.TopicName, ArrayCount(Result.TopicName) - 1);
   const rosidl_message_type_support_t *Ts = {};
   switch (MessageType) {
@@ -146,6 +177,39 @@ gui_ros_topic_subscription GUIRosSubscribeToTopic(gui_ros_state *State,
   case gui_ros_message_type_thrusterforces: {
     Ts = ROSIDL_GET_MSG_TYPE_SUPPORT(vortex_msgs, msg, ThrusterForces);
   } break;
+  case gui_ros_message_type_bms_status: {
+    Ts = ROSIDL_GET_MSG_TYPE_SUPPORT(vortex_msgs, msg, BmsStatus);
+  } break;
+  case gui_ros_message_type_motor_controller_status: {
+    Ts = ROSIDL_GET_MSG_TYPE_SUPPORT(vortex_msgs, msg, MotorControllerStatus);
+  } break;
+  case gui_ros_message_type_thruster_status: {
+    Ts = ROSIDL_GET_MSG_TYPE_SUPPORT(vortex_msgs, msg, ThrusterStatusArray);
+  } break;
+  case gui_ros_message_type_pcb_status: {
+    Ts = ROSIDL_GET_MSG_TYPE_SUPPORT(vortex_msgs, msg, PcbStatusArray);
+  } break;
+  case gui_ros_message_type_power_interface: {
+    Ts = ROSIDL_GET_MSG_TYPE_SUPPORT(vortex_msgs, msg, PowerInterface);
+  } break;
+  case gui_ros_message_type_hardware_killswitch: {
+    Ts = ROSIDL_GET_MSG_TYPE_SUPPORT(vortex_msgs, msg, HardwareKillswitch);
+  } break;
+  case gui_ros_message_type_torpedo: {
+    Ts = ROSIDL_GET_MSG_TYPE_SUPPORT(vortex_msgs, msg, TorpedoStatus);
+  } break;
+  case gui_ros_message_type_torpedo_count: {
+    Ts = ROSIDL_GET_MSG_TYPE_SUPPORT(vortex_msgs, msg, TorpedoCount);
+  } break;
+  case gui_ros_message_type_dropper: {
+    Ts = ROSIDL_GET_MSG_TYPE_SUPPORT(vortex_msgs, msg, DropperStatus);
+  } break;
+  case gui_ros_message_type_marker_count: {
+    Ts = ROSIDL_GET_MSG_TYPE_SUPPORT(vortex_msgs, msg, MarkerCount);
+  } break;
+  case gui_ros_message_type_gripper: {
+    Ts = ROSIDL_GET_MSG_TYPE_SUPPORT(vortex_msgs, msg, GripperStatus);
+  } break;
   default: {
     LogError("Unrecognized message type");
   } break;
@@ -153,7 +217,8 @@ gui_ros_topic_subscription GUIRosSubscribeToTopic(gui_ros_state *State,
 
   rcl_ret_t RCLReturnCode = rcl_subscription_init(
       &Result.RCLSubscription, &State->RCLNode, Ts, Result.TopicName,
-      &State->RCLDefaultSubscriptionOptions);
+      Latched ? &State->RCLLatchedSubscriptionOptions
+              : &State->RCLDefaultSubscriptionOptions);
   if (RCLReturnCode == RCL_RET_OK) {
     Result.IsValid = 1;
   } else {
@@ -293,7 +358,117 @@ int GUIRosHandleNextMessage(gui_ros_topic_subscription *Sub,
 
     RCLReturnCode =
         rcl_take(&Sub->RCLSubscription, &Msg, &RCLMessageInfo, NULL);
-    vortex_msgs__msg__ThrusterForces__init(&Msg);
+    vortex_msgs__msg__ThrusterForces__fini(&Msg);
+  } break;
+  case gui_ros_message_type_bms_status: {
+    vortex_msgs__msg__BmsStatus Msg;
+    vortex_msgs__msg__BmsStatus__init(&Msg);
+    RCLReturnCode =
+        rcl_take(&Sub->RCLSubscription, &Msg, &RCLMessageInfo, NULL);
+    if (RCLReturnCode == RCL_RET_OK) {
+      GuiCopy(&DroneState->Bms[Sub->Index], &Msg);
+    }
+    vortex_msgs__msg__BmsStatus__fini(&Msg);
+  } break;
+  case gui_ros_message_type_motor_controller_status: {
+    vortex_msgs__msg__MotorControllerStatus Msg;
+    vortex_msgs__msg__MotorControllerStatus__init(&Msg);
+    RCLReturnCode =
+        rcl_take(&Sub->RCLSubscription, &Msg, &RCLMessageInfo, NULL);
+    if (RCLReturnCode == RCL_RET_OK) {
+      GuiCopy(&DroneState->MotorControllers[Sub->Index], &Msg);
+    }
+    vortex_msgs__msg__MotorControllerStatus__fini(&Msg);
+  } break;
+  case gui_ros_message_type_thruster_status: {
+    vortex_msgs__msg__ThrusterStatusArray Msg;
+    vortex_msgs__msg__ThrusterStatusArray__init(&Msg);
+    RCLReturnCode =
+        rcl_take(&Sub->RCLSubscription, &Msg, &RCLMessageInfo, NULL);
+    if (RCLReturnCode == RCL_RET_OK) {
+      GuiCopy(&DroneState->ThrusterStatus, &Msg);
+    }
+    vortex_msgs__msg__ThrusterStatusArray__fini(&Msg);
+  } break;
+  case gui_ros_message_type_pcb_status: {
+    vortex_msgs__msg__PcbStatusArray Msg;
+    vortex_msgs__msg__PcbStatusArray__init(&Msg);
+    RCLReturnCode =
+        rcl_take(&Sub->RCLSubscription, &Msg, &RCLMessageInfo, NULL);
+    if (RCLReturnCode == RCL_RET_OK) {
+      GuiCopy(&DroneState->PcbStatus, &Msg);
+    }
+    vortex_msgs__msg__PcbStatusArray__fini(&Msg);
+  } break;
+  case gui_ros_message_type_power_interface: {
+    vortex_msgs__msg__PowerInterface Msg;
+    vortex_msgs__msg__PowerInterface__init(&Msg);
+    RCLReturnCode =
+        rcl_take(&Sub->RCLSubscription, &Msg, &RCLMessageInfo, NULL);
+    if (RCLReturnCode == RCL_RET_OK) {
+      GuiCopy(&DroneState->PowerInterface, &Msg);
+    }
+    vortex_msgs__msg__PowerInterface__fini(&Msg);
+  } break;
+  case gui_ros_message_type_hardware_killswitch: {
+    vortex_msgs__msg__HardwareKillswitch Msg;
+    vortex_msgs__msg__HardwareKillswitch__init(&Msg);
+    RCLReturnCode =
+        rcl_take(&Sub->RCLSubscription, &Msg, &RCLMessageInfo, NULL);
+    if (RCLReturnCode == RCL_RET_OK) {
+      GuiCopy(&DroneState->HardwareKillswitch, &Msg);
+    }
+    vortex_msgs__msg__HardwareKillswitch__fini(&Msg);
+  } break;
+  case gui_ros_message_type_torpedo: {
+    vortex_msgs__msg__TorpedoStatus Msg;
+    vortex_msgs__msg__TorpedoStatus__init(&Msg);
+    RCLReturnCode =
+        rcl_take(&Sub->RCLSubscription, &Msg, &RCLMessageInfo, NULL);
+    if (RCLReturnCode == RCL_RET_OK) {
+      GuiCopy(&DroneState->Torpedo, &Msg);
+    }
+    vortex_msgs__msg__TorpedoStatus__fini(&Msg);
+  } break;
+  case gui_ros_message_type_torpedo_count: {
+    vortex_msgs__msg__TorpedoCount Msg;
+    vortex_msgs__msg__TorpedoCount__init(&Msg);
+    RCLReturnCode =
+        rcl_take(&Sub->RCLSubscription, &Msg, &RCLMessageInfo, NULL);
+    if (RCLReturnCode == RCL_RET_OK) {
+      GuiCopy(&DroneState->TorpedoCount, &Msg);
+    }
+    vortex_msgs__msg__TorpedoCount__fini(&Msg);
+  } break;
+  case gui_ros_message_type_dropper: {
+    vortex_msgs__msg__DropperStatus Msg;
+    vortex_msgs__msg__DropperStatus__init(&Msg);
+    RCLReturnCode =
+        rcl_take(&Sub->RCLSubscription, &Msg, &RCLMessageInfo, NULL);
+    if (RCLReturnCode == RCL_RET_OK) {
+      GuiCopy(&DroneState->Dropper, &Msg);
+    }
+    vortex_msgs__msg__DropperStatus__fini(&Msg);
+  } break;
+  case gui_ros_message_type_marker_count: {
+    vortex_msgs__msg__MarkerCount Msg;
+    vortex_msgs__msg__MarkerCount__init(&Msg);
+    RCLReturnCode =
+        rcl_take(&Sub->RCLSubscription, &Msg, &RCLMessageInfo, NULL);
+    if (RCLReturnCode == RCL_RET_OK) {
+      GuiCopy(&DroneState->MarkerCount, &Msg);
+    }
+    vortex_msgs__msg__MarkerCount__fini(&Msg);
+  } break;
+  case gui_ros_message_type_gripper: {
+    vortex_msgs__msg__GripperStatus Msg;
+    vortex_msgs__msg__GripperStatus__init(&Msg);
+    RCLReturnCode =
+        rcl_take(&Sub->RCLSubscription, &Msg, &RCLMessageInfo, NULL);
+    if (RCLReturnCode == RCL_RET_OK) {
+      GuiCopy(&DroneState->Gripper, &Msg);
+    }
+    vortex_msgs__msg__GripperStatus__fini(&Msg);
   } break;
   default: {
     LogError("Invalid message type");

@@ -35,6 +35,32 @@ int main(int ArgC, char **ArgV) {
   gui_ros_topic_subscription ThrusterSub =
       GUIRosSubscribeToTopic(&GUIRosState, "/nautilus/thruster_forces",
                              gui_ros_message_type_thrusterforces);
+  gui_ros_topic_subscription Bms0Sub = GUIRosSubscribeToTopic(
+      &GUIRosState, "/nautilus/embedded/bms_0", gui_ros_message_type_bms_status, 0);
+  gui_ros_topic_subscription Bms1Sub = GUIRosSubscribeToTopic(
+      &GUIRosState, "/nautilus/embedded/bms_1", gui_ros_message_type_bms_status, 1);
+  gui_ros_topic_subscription Motor0Sub = GUIRosSubscribeToTopic(
+      &GUIRosState, "/nautilus/embedded/motorcontroller_0", gui_ros_message_type_motor_controller_status, 0);
+  gui_ros_topic_subscription Motor1Sub = GUIRosSubscribeToTopic(
+      &GUIRosState, "/nautilus/embedded/motorcontroller_1", gui_ros_message_type_motor_controller_status, 1);
+  gui_ros_topic_subscription ThrusterStatusSub = GUIRosSubscribeToTopic(
+      &GUIRosState, "/nautilus/thruster_status", gui_ros_message_type_thruster_status);
+  gui_ros_topic_subscription PcbSub = GUIRosSubscribeToTopic(
+      &GUIRosState, "/nautilus/embedded/pcb_status", gui_ros_message_type_pcb_status);
+  gui_ros_topic_subscription PowerSub = GUIRosSubscribeToTopic(
+      &GUIRosState, "/nautilus/embedded/power_interface", gui_ros_message_type_power_interface);
+  gui_ros_topic_subscription HwKillSub = GUIRosSubscribeToTopic(
+      &GUIRosState, "/nautilus/embedded/hardware_killswitch", gui_ros_message_type_hardware_killswitch, 0, true);
+  gui_ros_topic_subscription TorpedoSub = GUIRosSubscribeToTopic(
+      &GUIRosState, "/nautilus/embedded/torpedo", gui_ros_message_type_torpedo);
+  gui_ros_topic_subscription TorpedoCountSub = GUIRosSubscribeToTopic(
+      &GUIRosState, "/nautilus/embedded/torpedoes_left", gui_ros_message_type_torpedo_count, 0, true);
+  gui_ros_topic_subscription DropperSub = GUIRosSubscribeToTopic(
+      &GUIRosState, "/nautilus/embedded/dropper", gui_ros_message_type_dropper);
+  gui_ros_topic_subscription MarkerCountSub = GUIRosSubscribeToTopic(
+      &GUIRosState, "/nautilus/embedded/markers_left", gui_ros_message_type_marker_count, 0, true);
+  gui_ros_topic_subscription GripperSub = GUIRosSubscribeToTopic(
+      &GUIRosState, "/nautilus/embedded/gripper", gui_ros_message_type_gripper);
 
 #if 0
 
@@ -68,6 +94,32 @@ int main(int ArgC, char **ArgV) {
         ;
       while (!GUIRosHandleNextMessage(&QuatSub, &DroneState))
         ;
+      while (!GUIRosHandleNextMessage(&Bms0Sub, &DroneState))
+      ;
+      while (!GUIRosHandleNextMessage(&Bms1Sub, &DroneState))
+      ;
+      while (!GUIRosHandleNextMessage(&Motor0Sub, &DroneState))
+      ;
+      while (!GUIRosHandleNextMessage(&Motor1Sub, &DroneState))
+      ;
+      while (!GUIRosHandleNextMessage(&ThrusterStatusSub, &DroneState))
+      ;
+      while (!GUIRosHandleNextMessage(&PcbSub, &DroneState))
+      ;
+      while (!GUIRosHandleNextMessage(&PowerSub, &DroneState))
+      ;
+      while (!GUIRosHandleNextMessage(&HwKillSub, &DroneState))
+      ;
+      while (!GUIRosHandleNextMessage(&TorpedoSub, &DroneState))
+      ;
+      while (!GUIRosHandleNextMessage(&TorpedoCountSub, &DroneState))
+      ;
+      while (!GUIRosHandleNextMessage(&DropperSub, &DroneState))
+      ;
+      while (!GUIRosHandleNextMessage(&MarkerCountSub, &DroneState))
+      ;
+      while (!GUIRosHandleNextMessage(&GripperSub, &DroneState))
+      ;
       PlatformSend(&AcceptedSocket, (u8 *)&DroneState, sizeof(DroneState));
       timespec SleepTime = {};
       // SleepTime.tv_sec = 1;
