@@ -1,6 +1,7 @@
 #ifndef drone_state_h
 #define drone_state_h
 #include "typedef.h"
+#include "embedded_msgs.h" // Generated from the .msg files by tools/gen_embedded_msgs.py
 
 struct v3 {
   f64 X;
@@ -35,15 +36,6 @@ enum {
   gui_OperationMode__REFERENCE = 3,
 };
 
-enum {
-  gui_ThrusterStatus__UNKNOWN = 0,
-  gui_ThrusterStatus__HEALTHY = 1,
-  gui_ThrusterStatus__DEGRADED = 2,
-  gui_ThrusterStatus__RPM_FAULT = 3,
-  gui_ThrusterStatus__ESC_FAULT = 4,
-  gui_ThrusterStatus__FAILED = 5,
-
-};
 
 struct gui_referencefilter_quat {
   f64 x;
