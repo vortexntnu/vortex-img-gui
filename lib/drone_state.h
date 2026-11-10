@@ -60,6 +60,19 @@ struct gui_drone_state {
   gui_odom Odometry;
   gui_pose Pose;
   gui_referencefilter_quat ReferenceFilterQuat;
+
+  // Embedded. Types are generated in embedded_msgs.h
+  gui_bms_status Bms[2];                         // /nautilus/embedded/bms_0 and bms_1
+  gui_motor_controller_status MotorControllers[2]; // /nautilus/embedded/motorcontroller_0 and _1
+  gui_thruster_status_array ThrusterStatus;      // /nautilus/thruster_status
+  gui_pcb_status_array PcbStatus;                // /nautilus/embedded/pcb_status
+  gui_power_interface PowerInterface;            // /nautilus/embedded/power_interface
+  gui_hardware_killswitch HardwareKillswitch;    // /nautilus/embedded/hardware_killswitch
+  gui_torpedo_status Torpedo;                    // /nautilus/embedded/torpedo
+  gui_torpedo_count TorpedoCount;                // /nautilus/embedded/torpedoes_left
+  gui_dropper_status Dropper;                    // /nautilus/embedded/dropper
+  gui_marker_count MarkerCount;                  // /nautilus/embedded/markers_left
+  gui_gripper_status Gripper;                    // /nautilus/embedded/gripper
 };
 // How drone messages actually look
 
